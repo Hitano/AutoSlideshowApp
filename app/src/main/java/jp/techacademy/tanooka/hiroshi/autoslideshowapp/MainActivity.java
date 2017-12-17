@@ -22,7 +22,7 @@ import java.util.TimerTask;
 public class MainActivity extends AppCompatActivity {
 
     // パーミッション判定
-    private static final int PERMISSIONS_REQUEST_CODE = 1;
+    private static final int PERMISSIONS_REQUEST_CODE = 100;
 
     Timer mTimer;
     double mTimerSec = 0.0;
@@ -45,30 +45,25 @@ public class MainActivity extends AppCompatActivity {
         mBackButton = (Button)findViewById(R.id.backButton);
         mNextButton = (Button)findViewById(R.id.nextButton);
 
-        // カーソル、画像の初期化
-        ContentResolver resolver = getContentResolver();
-        cursor = resolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                null,
-                null,
-                null,
-                null
-        );
-
-        // 最初の画像の表示
-        cursor.moveToFirst();
-        int fieldIndex = cursor.getColumnIndex(MediaStore.Images.Media._ID);
-        Long id = cursor.getLong(fieldIndex);
-        imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id);
-
-        ImageView imageView = (ImageView)findViewById(R.id.imageView);
-        imageView.setImageURI(imageUri);
-
         // スタートボタンがタップされたとき、スライドショーを開始する
         mStartStopButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startSlideShow(v);
+                // 6.0以上の場合、パーミッションを確認
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // 許可されている場合
+                    if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                        // 初回だけ呼び出されて、カーソルを取得、画像を表示する
+                        if (cursor == null) {
+                            getCursor();
+                            showImage(cursor);
+                        }
+                        // スライドショーを開始
+                        startSlideShow(v);
+                    } else {    // 許可されていない場合
+                        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST_CODE);
+                    }
+                }
             }
         });
 
@@ -76,12 +71,21 @@ public class MainActivity extends AppCompatActivity {
         mBackButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d("Message", "PushBackButton");
-                if (cursor.moveToPrevious()) {
-                    showImage(cursor);
-                } else {
-                    cursor.moveToLast();
-                    showImage(cursor);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                        if (cursor == null) {
+                            getCursor();
+                            showImage(cursor);
+                        }
+                        if (cursor.moveToPrevious()) {
+                            showImage(cursor);
+                        } else {
+                            cursor.moveToLast();
+                            showImage(cursor);
+                        }
+                    } else {
+                        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST_CODE);
+                    }
                 }
             }
         });
@@ -90,20 +94,42 @@ public class MainActivity extends AppCompatActivity {
         mNextButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d("Message", "PushNextButton");
-                if (cursor.moveToNext()) {
-                    showImage(cursor);
-                } else {
-                    cursor.moveToFirst();
-                    showImage(cursor);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                        if (cursor == null) {
+                            getCursor();
+                            showImage(cursor);
+                        }
+                        if (cursor.moveToNext()) {
+                            showImage(cursor);
+                        } else {
+                            cursor.moveToFirst();
+                            showImage(cursor);
+                        }
+                    } else {
+                        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST_CODE);
+                    }
                 }
             }
         });
     }
 
+    // カーソル、画像URIの定義と取得
+    private Cursor getCursor() {
+        ContentResolver resolver = getContentResolver();
+        cursor = resolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                null,
+                null,
+                null,
+                null
+        );
+        cursor.moveToFirst();
+        return cursor;
+    }
+
     // スライドショーの実行
     private void startSlideShow(View v) {
-        Log.d("Message", "PushStartStopButton");
 
         // スライドショーを再生する
         if (mTimer == null) {
@@ -120,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
                         public void run() {
                             if (cursor.moveToNext()) {
                                 showImage(cursor);
-                            } else {
+                            } else {    // 列の最後に来たら最初に戻る
                                 cursor.moveToFirst();
                                 showImage(cursor);
                             }
@@ -143,6 +169,7 @@ public class MainActivity extends AppCompatActivity {
             // 停止ボタンを再生ボタンに戻す
             mStartStopButton.setText("再生");
 
+            // 戻る・進むボタンを有効に戻す
             mBackButton.setEnabled(true);
             mNextButton.setEnabled(true);
         }
@@ -154,6 +181,7 @@ public class MainActivity extends AppCompatActivity {
         int fieldIndex = cursor.getColumnIndex(MediaStore.Images.Media._ID);
         Long id = cursor.getLong(fieldIndex);
         imageUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id);
+
         Log.d("ANDROID.id", String.valueOf(id));
         Log.d("ANDROID.Uri", String.valueOf(imageUri));
 
